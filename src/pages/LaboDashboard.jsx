@@ -4,14 +4,16 @@ import { Header } from '../components/Header';
 import { SystemsGrid } from '../components/SystemGrid';
 import { WelcomeSection } from '../components/WelcomeSection'
 import { InfoSection } from '../components/InfoSection'
+import FilmLogo from "/LabomidiaLogoBranco.png"
+
 
 export default function LaboDashboard() {
     const systems = [
         {
             id: 'acervo',
-            title: 'Acervo de Filmes',
-            description: 'Consulte e gerencie o acervo de filmes do laboratório',
-            icon: Film,
+            title: 'Laboflix',
+            description: 'Descubra e assista aos filmes feitos no Cinema Unifor no nosso Acervo de filmes!',
+            image: FilmLogo,
             color: 'from-blue-500 to-blue-600',
             url: 'https://acervo-cinema-unifor.vercel.app/',
             status: 'ativo'
@@ -19,39 +21,37 @@ export default function LaboDashboard() {
         {
             id: 'banco-talento',
             title: 'Banco de Talento',
-            description: 'Gerencie e consulte o banco de talentos do laboratório',
-            icon: Users,
+            description: 'Descubra os talentos para seu próximo filme.',
             color: 'from-pink-500 to-pink-600',
             url: 'https://banco-talento-labo.vercel.app/',
             status: 'ativo'
         },
         {
-            id: 'aluguel',
-            title: 'Aluguel de Dispositivos',
-            description: 'Faça requisição e acompanhe o aluguel de equipamentos',
+            id: 'retirada-equipamento',
+            title: 'Retirada de Equipamentos',
+            description: 'Acompanhe a Disponibilidade de equipamentos e solicite sua retirada',
             icon: Package,
             color: 'from-purple-500 to-purple-600',
             url: 'https://seu-aluguel-dispositivos.vercel.app',
             status: 'em desenvolvimento'
         },
         {
-            id: 'calendario',
-            title: 'Calendário de Aulas',
-            description: 'Visualize todas as aulas agendadas durante o ano',
-            icon: Calendar,
-            color: 'from-green-500 to-green-600',
-            url: 'https://seu-calendario-aulas.vercel.app',
-            status: 'em desenvolvimento'
-        },
-        {
             id: 'salas',
             title: 'Solicitação de Salas',
             description: 'Solicite o uso de salas do laboratório',
-            icon: DoorOpen,
             color: 'from-orange-500 to-orange-600',
             url: 'https://seu-solicitacao-salas.vercel.app',
             status: 'em desenvolvimento'
         },
+        {
+            id: 'calendario',
+            title: 'Calendário de Aulas',
+            description: 'Visualize todas as aulas agendadas no Labomidia',
+            color: 'from-green-500 to-green-600',
+            url: 'https://seu-calendario-aulas.vercel.app',
+            status: 'em desenvolvimento'
+        },
+
 
     ];
 

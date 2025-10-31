@@ -1,6 +1,8 @@
 import React from "react";
+import {SystemIcon} from "./SystemIcon"
+
 export function SystemCard({ system }) {
-    const Icon = system.icon;
+
     const isInDev = system.status === 'em desenvolvimento';
 
     const handleClick = () => {
@@ -18,15 +20,15 @@ export function SystemCard({ system }) {
             <div className="relative p-8">
                 <div className="absolute top-4 right-4">
                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${isInDev
-                            ? 'bg-yellow-500/20 text-yellow-300'
-                            : 'bg-green-500/20 text-green-300'
+                        ? 'bg-yellow-500/20 text-yellow-300'
+                        : 'bg-green-500/20 text-green-300'
                         }`}>
                         {system.status === 'em desenvolvimento' ? '⏳ Em desenvolvimento' : '✓ Ativo'}
                     </span>
                 </div>
 
-                <div className={`inline-flex p-4 rounded-lg bg-linear-to-br ${system.color} text-white mb-4`}>
-                    <Icon size={28} />
+                <div className="mb-4">
+                    <SystemIcon system={system}  />
                 </div>
 
                 <h3 className="text-xl font-bold text-white mb-2">{system.title}</h3>
@@ -36,8 +38,8 @@ export function SystemCard({ system }) {
                     onClick={handleClick}
                     disabled={isInDev}
                     className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 ${isInDev
-                            ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
-                            : `bg-linear-to-br ${system.color} text-white hover:shadow-lg cursor-pointer hover:shadow-slate-900/50 hover:scale-105 active:scale-95`
+                        ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                        : `bg-green-300 text-black hover:shadow-lg cursor-pointer hover:shadow-slate-900/50 hover:scale-105 active:scale-95`
                         }`}
                 >
                     Acessar
