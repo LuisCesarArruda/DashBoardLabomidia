@@ -65,7 +65,7 @@ export default function LaboDashboard() {
 
     return (
         <div className="min-h-screen bg-linear-to-br from-slate-900 via-slate-800 to-slate-900">
-            <Header />
+            
             <main className="max-w-7xl mx-auto px-6 py-12">
                 <WelcomeSection />
                 <SystemsGrid systems={systems} onNavigate={handleNavigate} />
