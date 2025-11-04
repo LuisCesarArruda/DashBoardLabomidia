@@ -104,7 +104,7 @@ export async function loginUser(matricula, senha) {
         sessionStorage.setItem('user', JSON.stringify(userData));
         sessionStorage.setItem('loginTime', new Date().getTime().toString());
 
-        console.log('✅ Login bem-sucedido:', userData.nome);
+
 
         return userData;
 
