@@ -1,14 +1,83 @@
 // src/services/authService.js
+// SOLUÇÃO DEFINITIVA: JSONP - Funciona 100% com Google Apps Script
+
 const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
 const SPREADSHEET_ID = import.meta.env.VITE_SPREADSHEET_ID;
-const LAB_EMAIL = import.meta.env.VITE_LAB_EMAIL || 'seu-email-laboratorio@unifor.br';
+const LAB_EMAIL = import.meta.env.VITE_LAB_EMAIL || 'labomidia@unifor.br';
 const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL;
 
 /**
+ * SOLUÇÃO JSONP - Bypassa CORS completamente
+ * Cria um script tag que carrega a resposta do Google Apps Script
+ */
+function chamarGoogleScriptJSONP(acao, dados = {}) {
+    return new Promise((resolve, reject) => {
+        try {
+            if (!APPS_SCRIPT_URL) {
+                reject(new Error('URL do Apps Script não configurada'));
+                return;
+            }
+
+            console.log(`📡 Chamando (JSONP): ${acao}`);
+            console.log('📦 Dados:', dados);
+
+            // Cria um callback único
+            const callbackName = `jsonp_callback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+            // Registra o callback global
+            window[callbackName] = function (data) {
+                console.log('✅ Resposta recebida:', data);
+
+                // Limpa
+                delete window[callbackName];
+                document.body.removeChild(script);
+
+                resolve(data);
+            };
+
+            // Monta os parâmetros
+            const params = new URLSearchParams({
+                acao,
+                callback: callbackName,
+                ...dados
+            });
+
+            const url = `${APPS_SCRIPT_URL}?${params.toString()}`;
+            console.log('🔗 URL:', url.substring(0, 150) + '...');
+
+            // Cria script tag
+            const script = document.createElement('script');
+            script.src = url;
+
+            script.onerror = function () {
+                console.error('❌ Erro ao carregar script');
+                delete window[callbackName];
+                reject(new Error('Falha ao conectar com o servidor'));
+            };
+
+            // Timeout de 30 segundos
+            const timeout = setTimeout(() => {
+                console.error('⏰ Timeout');
+                delete window[callbackName];
+                document.body.removeChild(script);
+                reject(new Error('Tempo esgotado. Tente novamente.'));
+            }, 30000);
+
+            script.onload = function () {
+                clearTimeout(timeout);
+            };
+
+            document.body.appendChild(script);
+
+        } catch (error) {
+            console.error('❌ Erro ao criar requisição:', error);
+            reject(error);
+        }
+    });
+}
+
+/**
  * Login seguro via Apps Script
- * @param {string} matricula - Matrícula do aluno
- * @param {string} senha - Senha do aluno
- * @returns {Object} Dados do usuário logado
  */
 export async function loginUser(matricula, senha) {
     try {
@@ -20,38 +89,26 @@ export async function loginUser(matricula, senha) {
             throw new Error('Sistema não configurado. Contate o administrador.');
         }
 
-        const payload = {
-            acao: 'verificarSenha',
-            matricula,
-            senha
-        };
-
-        const response = await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+        const resultado = await chamarGoogleScriptJSONP('verificarSenha', {
+            matricula: matricula.trim(),
+            senha: senha
         });
 
-        if (!response.ok) {
-            throw new Error('Erro ao conectar com o servidor');
-        }
-
-        const data = await response.json();
-
-        if (!data.sucesso) {
-            throw new Error(data.mensagem || 'Credenciais inválidas');
+        if (!resultado.sucesso) {
+            throw new Error(resultado.mensagem || 'Credenciais inválidas');
         }
 
         const userData = {
-            nome: data.nome,
-            matricula,
-            email: data.email,
+            nome: resultado.nome,
+            matricula: matricula.trim(),
+            email: resultado.email,
             loginTime: new Date().toISOString(),
         };
 
         sessionStorage.setItem('user', JSON.stringify(userData));
         sessionStorage.setItem('loginTime', new Date().getTime().toString());
 
+        console.log('✅ Login realizado com sucesso');
         return userData;
 
     } catch (error) {
@@ -62,10 +119,6 @@ export async function loginUser(matricula, senha) {
 
 /**
  * Registra novo aluno e solicita acesso
- * @param {string} nome - Nome completo do aluno
- * @param {string} matricula - Matrícula do aluno
- * @param {string} email - Email do aluno
- * @returns {Object} Status da solicitação
  */
 export async function registerNewAluno(nome, matricula, email) {
     try {
@@ -83,59 +136,26 @@ export async function registerNewAluno(nome, matricula, email) {
         }
 
         if (!APPS_SCRIPT_URL) {
-            console.error('APPS_SCRIPT_URL não configurada:', APPS_SCRIPT_URL);
             throw new Error('Sistema não configurado. Verifique as variáveis de ambiente.');
         }
 
-        console.log('📤 Enviando solicitação de registro para:', APPS_SCRIPT_URL);
+        console.log('📤 Enviando solicitação de registro...');
 
-        const payload = {
-            acao: 'solicitarAcesso',
+        const resultado = await chamarGoogleScriptJSONP('solicitarAcesso', {
             nome: nome.trim(),
             matricula: matricula.trim(),
             email: email.trim()
-        };
-
-        console.log('📦 Payload:', payload);
-
-        const response = await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify(payload)
         });
 
-        console.log('📥 Status da resposta:', response.status, response.statusText);
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('❌ Erro HTTP:', errorText);
-            throw new Error(`Erro ao enviar solicitação: ${response.status}`);
+        if (!resultado.sucesso) {
+            throw new Error(resultado.mensagem || 'Erro ao processar solicitação');
         }
 
-        const responseText = await response.text();
-        console.log('📄 Resposta bruta:', responseText.substring(0, 200));
-
-        let data;
-        try {
-            data = JSON.parse(responseText);
-        } catch (parseError) {
-            console.error('❌ Erro ao fazer parse JSON:', parseError);
-            console.error('Texto recebido:', responseText);
-            throw new Error('Resposta do servidor inválida');
-        }
-
-        console.log('✅ Dados parseados:', data);
-
-        if (!data.sucesso) {
-            throw new Error(data.mensagem || 'Erro ao processar solicitação');
-        }
+        console.log('✅ Solicitação enviada com sucesso');
 
         return {
             sucesso: true,
-            mensagem: data.mensagem || 'Solicitação enviada! Aguarde a validação do laboratório.'
+            mensagem: resultado.mensagem || 'Solicitação enviada! Aguarde a validação do laboratório.'
         };
 
     } catch (error) {
@@ -145,11 +165,7 @@ export async function registerNewAluno(nome, matricula, email) {
 }
 
 /**
- * Alterna a senha do aluno
- * @param {string} matricula - Matrícula do aluno
- * @param {string} senhaAtual - Senha atual
- * @param {string} novaSenha - Nova senha
- * @returns {Object} Status da alteração
+ * Altera a senha do aluno
  */
 export async function changePassword(matricula, senhaAtual, novaSenha) {
     try {
@@ -169,28 +185,19 @@ export async function changePassword(matricula, senhaAtual, novaSenha) {
             throw new Error('URL do Apps Script não configurada');
         }
 
-        const payload = {
-            acao: 'mudarSenhaAluno',
-            matricula,
+        console.log('🔐 Alterando senha...');
+
+        const resultado = await chamarGoogleScriptJSONP('mudarSenhaAluno', {
+            matricula: matricula.trim(),
             senhaAtual,
             novaSenha
-        };
-
-        const response = await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
         });
 
-        if (!response.ok) {
-            throw new Error(`Erro HTTP: ${response.status}`);
+        if (!resultado.sucesso) {
+            throw new Error(resultado.mensagem || 'Erro ao alterar senha');
         }
 
-        const data = await response.json();
-
-        if (!data.sucesso) {
-            throw new Error(data.mensagem || 'Erro ao alterar senha');
-        }
+        console.log('✅ Senha alterada com sucesso');
 
         // Faz logout após alterar senha
         logout();
@@ -207,8 +214,37 @@ export async function changePassword(matricula, senhaAtual, novaSenha) {
 }
 
 /**
+ * Testa a conexão com o Google Apps Script
+ */
+export async function testarConexao() {
+    try {
+        if (!APPS_SCRIPT_URL) {
+            throw new Error('URL do Apps Script não configurada');
+        }
+
+        console.log('🔍 Testando conexão...');
+
+        const resultado = await chamarGoogleScriptJSONP('testar');
+
+        if (resultado.sucesso) {
+            console.log('✅ Conexão OK!');
+        } else {
+            console.log('⚠️ Conexão com problemas:', resultado.mensagem);
+        }
+
+        return resultado;
+
+    } catch (error) {
+        console.error('❌ Erro ao testar conexão:', error.message);
+        return {
+            sucesso: false,
+            mensagem: error.message
+        };
+    }
+}
+
+/**
  * Obtém o usuário logado
- * @returns {Object|null} Dados do usuário ou null se não logado
  */
 export function getLoggedUser() {
     try {
@@ -248,7 +284,6 @@ export function logout() {
 
 /**
  * Verifica se a API está configurada corretamente
- * @returns {Object} Status das configurações
  */
 export function checkApiConfig() {
     return {
@@ -257,6 +292,7 @@ export function checkApiConfig() {
         labEmailConfigured: !!LAB_EMAIL && LAB_EMAIL !== 'seu-email-laboratorio@unifor.br',
         appsScriptConfigured: !!APPS_SCRIPT_URL,
         allConfigured: !!(API_KEY && SPREADSHEET_ID && LAB_EMAIL && APPS_SCRIPT_URL),
-        labEmail: LAB_EMAIL
+        labEmail: LAB_EMAIL,
+        appsScriptUrl: APPS_SCRIPT_URL
     };
 }
