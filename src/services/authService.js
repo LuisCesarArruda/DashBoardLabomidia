@@ -5,106 +5,52 @@ const LAB_EMAIL = import.meta.env.VITE_LAB_EMAIL || 'seu-email-laboratorio@unifo
 const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL;
 
 /**
- * Busca todos os alunos da planilha
- */
-async function fetchAllStudents() {
-    try {
-        if (!API_KEY || API_KEY === 'sua_chave_api_aqui') {
-            throw new Error('Configure a VITE_GOOGLE_API_KEY no arquivo .env');
-        }
-
-        if (!SPREADSHEET_ID) {
-            throw new Error('Configure a VITE_SPREADSHEET_ID no arquivo .env');
-        }
-
-        const range = 'Alunos!A2:D1000';
-        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
-
-        const response = await fetch(url);
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error?.message || 'Erro ao carregar alunos');
-        }
-
-        const data = await response.json();
-        const rows = data.values || [];
-
-        if (!rows || rows.length === 0) {
-            return [];
-        }
-
-
-        const headersRange = 'Alunos!A1:D1';
-        const headersUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${headersRange}?key=${API_KEY}`;
-        const headersResponse = await fetch(headersUrl);
-        const headersData = await headersResponse.json();
-        const headers = headersData.values ? headersData.values[0] : ['Nome', 'Matrícula', 'Email', 'Senha'];
-
-
-        const students = rows.map(row => {
-            const student = {};
-            headers.forEach((header, index) => {
-                student[header] = row[index] || '';
-            });
-            return student;
-        });
-
-        return students;
-
-    } catch (error) {
-        console.error('Erro ao buscar alunos:', error);
-        throw error;
-    }
-}
-
-/**
- * 
+ * Login seguro via Apps Script
  * @param {string} matricula - Matrícula do aluno
  * @param {string} senha - Senha do aluno
  * @returns {Object} Dados do usuário logado
  */
 export async function loginUser(matricula, senha) {
     try {
-        const students = await fetchAllStudents();
-
-        if (students.length === 0) {
-            throw new Error('Nenhum aluno cadastrado');
+        if (!matricula || !senha) {
+            throw new Error('Matrícula e senha são obrigatórios');
         }
 
-
-        const aluno = students.find(student =>
-            student['Matrícula']?.toString().trim() === matricula.toString().trim()
-        );
-
-        if (!aluno) {
-            throw new Error('Dados não encontrados.');
+        if (!APPS_SCRIPT_URL) {
+            throw new Error('Sistema não configurado. Contate o administrador.');
         }
 
+        const payload = {
+            acao: 'verificarSenha',
+            matricula,
+            senha
+        };
 
-        if (!aluno['Senha'] || aluno['Senha']?.toString().trim() === '') {
-            throw new Error('Sua conta ainda não foi ativada. Aguarde a validação do laboratório.');
+        const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            throw new Error('Erro ao conectar com o servidor');
         }
 
+        const data = await response.json();
 
-        const senhaArmazenada = aluno['Senha']?.toString().trim() || '';
-
-        if (senhaArmazenada !== senha) {
-            throw new Error('Dados Incorretos. Tente novamente.');
+        if (!data.sucesso) {
+            throw new Error(data.mensagem || 'Credenciais inválidas');
         }
-
 
         const userData = {
-            nome: aluno['Nome']?.trim() || '',
-            matricula: aluno['Matrícula']?.trim() || '',
-            email: aluno['Email']?.trim() || '',
+            nome: data.nome,
+            matricula,
+            email: data.email,
             loginTime: new Date().toISOString(),
         };
 
         sessionStorage.setItem('user', JSON.stringify(userData));
         sessionStorage.setItem('loginTime', new Date().getTime().toString());
-
-
 
         return userData;
 
@@ -115,7 +61,7 @@ export async function loginUser(matricula, senha) {
 }
 
 /**
- * Registra novo aluno e envia email de solicitação
+ * Registra novo aluno e solicita acesso
  * @param {string} nome - Nome completo do aluno
  * @param {string} matricula - Matrícula do aluno
  * @param {string} email - Email do aluno
@@ -136,39 +82,60 @@ export async function registerNewAluno(nome, matricula, email) {
             throw new Error('Matrícula deve conter apenas números');
         }
 
-        // Verifica se o aluno já existe
-        await verificarAlunoExistente(matricula, email);
+        if (!APPS_SCRIPT_URL) {
+            console.error('APPS_SCRIPT_URL não configurada:', APPS_SCRIPT_URL);
+            throw new Error('Sistema não configurado. Verifique as variáveis de ambiente.');
+        }
 
-        // Prepara dados para o email
-        const assunto = encodeURIComponent('Solicitação de Acesso - Banco de Talentos Unifor');
-        const corpo = encodeURIComponent(`
-Novo aluno solicitando acesso ao Banco de Talentos:
+        console.log('📤 Enviando solicitação de registro para:', APPS_SCRIPT_URL);
 
-Nome: ${nome}
-Matrícula: ${matricula}
-Email: ${email}
-
-    `);
-
-
-        window.location.href = `mailto:${LAB_EMAIL}?subject=${assunto}&body=${corpo}`;
-
-        const registroTemp = {
-            nome,
-            matricula,
-            email,
-            dataSolicitacao: new Date().toISOString(),
-            status: 'pendente'
+        const payload = {
+            acao: 'solicitarAcesso',
+            nome: nome.trim(),
+            matricula: matricula.trim(),
+            email: email.trim()
         };
 
-        localStorage.setItem(`registro_${matricula}`, JSON.stringify(registroTemp));
+        console.log('📦 Payload:', payload);
 
-        console.log('📧 Email de solicitação preparado para:', LAB_EMAIL);
+        const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        console.log('📥 Status da resposta:', response.status, response.statusText);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ Erro HTTP:', errorText);
+            throw new Error(`Erro ao enviar solicitação: ${response.status}`);
+        }
+
+        const responseText = await response.text();
+        console.log('📄 Resposta bruta:', responseText.substring(0, 200));
+
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (parseError) {
+            console.error('❌ Erro ao fazer parse JSON:', parseError);
+            console.error('Texto recebido:', responseText);
+            throw new Error('Resposta do servidor inválida');
+        }
+
+        console.log('✅ Dados parseados:', data);
+
+        if (!data.sucesso) {
+            throw new Error(data.mensagem || 'Erro ao processar solicitação');
+        }
 
         return {
             sucesso: true,
-            mensagem: 'Solicitação enviada! Aguarde a validação pelo laboratório.',
-            email: LAB_EMAIL
+            mensagem: data.mensagem || 'Solicitação enviada! Aguarde a validação do laboratório.'
         };
 
     } catch (error) {
@@ -178,30 +145,64 @@ Email: ${email}
 }
 
 /**
- * Verifica se o aluno já existe na planilha
+ * Alterna a senha do aluno
  * @param {string} matricula - Matrícula do aluno
- * @param {string} email - Email do aluno
- * @throws {Error} Se o aluno já existe
+ * @param {string} senhaAtual - Senha atual
+ * @param {string} novaSenha - Nova senha
+ * @returns {Object} Status da alteração
  */
-async function verificarAlunoExistente(matricula, email) {
+export async function changePassword(matricula, senhaAtual, novaSenha) {
     try {
-        const students = await fetchAllStudents();
-
-        const alunoExistente = students.find(student =>
-            student['Matrícula']?.toString().trim() === matricula.toString().trim() ||
-            student['Email']?.toString().toLowerCase().trim() === email.toLowerCase().trim()
-        );
-
-        if (alunoExistente) {
-            throw new Error('Esta matrícula ou email já está registrado');
+        if (!matricula || !senhaAtual || !novaSenha) {
+            throw new Error('Preencha todos os campos');
         }
+
+        if (novaSenha.length < 6) {
+            throw new Error('A nova senha deve ter pelo menos 6 caracteres');
+        }
+
+        if (novaSenha === senhaAtual) {
+            throw new Error('A nova senha não pode ser igual à atual');
+        }
+
+        if (!APPS_SCRIPT_URL) {
+            throw new Error('URL do Apps Script não configurada');
+        }
+
+        const payload = {
+            acao: 'mudarSenhaAluno',
+            matricula,
+            senhaAtual,
+            novaSenha
+        };
+
+        const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            throw new Error(`Erro HTTP: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (!data.sucesso) {
+            throw new Error(data.mensagem || 'Erro ao alterar senha');
+        }
+
+        // Faz logout após alterar senha
+        logout();
+
+        return {
+            sucesso: true,
+            mensagem: 'Senha alterada com sucesso! Faça login novamente.'
+        };
 
     } catch (error) {
-        if (error.message.includes('já está registrado')) {
-            throw error;
-        }
-
-        console.warn('Aviso ao verificar aluno:', error.message);
+        console.error('❌ Erro ao trocar senha:', error.message);
+        throw error;
     }
 }
 
@@ -246,121 +247,16 @@ export function logout() {
 }
 
 /**
- * Alterna a senha do aluno
- * Requer a URL do Apps Script configurada no .env
- */
-export async function changePassword(matricula, senhaAtual, novaSenha) {
-    try {
-        if (!matricula || !senhaAtual || !novaSenha) {
-            throw new Error("Preencha todos os campos");
-        }
-
-        if (novaSenha.length < 4) {
-            throw new Error("A nova senha deve ter pelo menos 4 caracteres");
-        }
-
-        if (novaSenha === senhaAtual) {
-            throw new Error("A nova senha não pode ser igual à atual");
-        }
-
-        if (!APPS_SCRIPT_URL) {
-            throw new Error("URL do Apps Script não configurada. Contate o administrador.");
-        }
-
-
-        const payload = {
-            acao: 'mudarSenha',
-            matricula,
-            senhaAtual,
-            novaSenha
-        };
-
-        const response = await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-            throw new Error(`Erro HTTP: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (!data.sucesso) {
-            throw new Error(data.mensagem || "Erro ao alterar senha");
-        }
-
-        console.log('✅ Senha alterada com sucesso');
-
-
-        logout();
-
-        return {
-            sucesso: true,
-            mensagem: data.mensagem
-        };
-
-    } catch (error) {
-        console.error("❌ Erro ao trocar senha:", error.message);
-        throw error;
-    }
-}
-
-/**
- * Verifica a senha do aluno
- */
-export async function verifyPassword(matricula, senha) {
-    try {
-        if (!matricula || !senha) {
-            throw new Error("Matrícula e senha são obrigatórios");
-        }
-
-        if (!APPS_SCRIPT_URL) {
-            throw new Error("URL do Apps Script não configurada");
-        }
-
-        const payload = {
-            acao: 'verificarSenha',
-            matricula,
-            senha
-        };
-
-        const response = await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-            throw new Error(`Erro HTTP: ${response.status}`);
-        }
-
-        const data = await response.json();
-        return data.sucesso;
-
-    } catch (error) {
-        console.error("❌ Erro ao verificar senha:", error.message);
-        return false;
-    }
-}
-
-/**
- * Obtém as configurações da API
+ * Verifica se a API está configurada corretamente
  * @returns {Object} Status das configurações
  */
 export function checkApiConfig() {
     return {
         apiKeyConfigured: !!API_KEY && API_KEY !== 'sua_chave_api_aqui',
         spreadsheetConfigured: !!SPREADSHEET_ID,
-        labEmailConfigured: LAB_EMAIL !== 'labomidia@unifor.br',
+        labEmailConfigured: !!LAB_EMAIL && LAB_EMAIL !== 'seu-email-laboratorio@unifor.br',
         appsScriptConfigured: !!APPS_SCRIPT_URL,
         allConfigured: !!(API_KEY && SPREADSHEET_ID && LAB_EMAIL && APPS_SCRIPT_URL),
         labEmail: LAB_EMAIL
     };
 }
-
