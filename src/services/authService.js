@@ -18,15 +18,12 @@ function chamarGoogleScriptJSONP(acao, dados = {}) {
                 return;
             }
 
-            console.log(`📡 Chamando (JSONP): ${acao}`);
-            console.log('📦 Dados:', dados);
 
             // Cria um callback único
             const callbackName = `jsonp_callback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
             // Registra o callback global
             window[callbackName] = function (data) {
-                console.log('✅ Resposta recebida:', data);
 
                 // Limpa
                 delete window[callbackName];
@@ -43,7 +40,7 @@ function chamarGoogleScriptJSONP(acao, dados = {}) {
             });
 
             const url = `${APPS_SCRIPT_URL}?${params.toString()}`;
-            console.log('🔗 URL:', url.substring(0, 150) + '...');
+
 
             // Cria script tag
             const script = document.createElement('script');
