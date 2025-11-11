@@ -19,8 +19,8 @@ export default function LaboDashboard() {
             status: 'ativo'
         },
         {
-            id: 'banco-talento',
-            title: 'Banco de Talento',
+            id: 'banco-elenco',
+            title: 'Banco de Elenco',
             description: 'Descubra os talentos para seu próximo filme.',
             color: 'from-pink-500 to-pink-600',
             url: 'https://banco-talento-labo.vercel.app/',
