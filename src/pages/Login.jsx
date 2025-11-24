@@ -62,7 +62,7 @@ export default function Login({ onLoginSuccess }) {
                         <div className="text-center mt-4 ">
                             <button
                                 onClick={() => setShowChangePassword(true)}
-                                className="text-slate-400 text-sm hover:text-slate-200 cursor-pointer underline"
+                                className="text-slate-100 text-sm hover:text-slate-300 cursor-pointer underline"
                             >
                                 Esqueceu ou deseja alterar a senha?
                             </button>
